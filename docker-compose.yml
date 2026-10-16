@@ -1,0 +1,20 @@
+services:
+  whoami:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GO_VERSION: "1.24"
+    image: whoami-alpine:latest
+    container_name: whoami
+    environment:
+      WHOAMI_PORT_NUMBER: ${WHOAMI_PORT_NUMBER:-8080}
+      WHOAMI_NAME: ${WHOAMI_NAME:-whoami-from-compose}
+    ports:
+      - "${HOST_PORT:-8080}:${WHOAMI_PORT_NUMBER:-8080}"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
