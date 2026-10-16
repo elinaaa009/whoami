@@ -1,26 +1,35 @@
-FROM golang:1-alpine AS builder
+# syntax=docker/dockerfile:1.7
 
-RUN apk --no-cache --no-progress add git ca-certificates tzdata make \
-    && update-ca-certificates \
-    && rm -rf /var/cache/apk/*
+ARG GO_VERSION=1.24
+FROM golang:${GO_VERSION}-alpine AS builder
 
-WORKDIR /go/whoami
+WORKDIR /src
+ENV CGO_ENABLED=0
 
-# Download go modules
-COPY go.mod .
-COPY go.sum .
-RUN GO111MODULE=on GOPROXY=https://proxy.golang.org go mod download
+COPY go.mod go.sum* ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath -ldflags="-s -w" -o /out/whoami .
 
-RUN make build
+FROM alpine:3.20
 
-# Create a minimal container to run a Golang static binary
-FROM scratch
+RUN apk add --no-cache ca-certificates \
+ && addgroup -S app \
+ && adduser -S -G app -u 10001 -H -s /sbin/nologin app
 
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /go/whoami/whoami .
+COPY --from=builder --chown=app:app /out/whoami /app/whoami
 
-ENTRYPOINT ["/whoami"]
-EXPOSE 80
+ENV WHOAMI_PORT_NUMBER=8080 \
+    WHOAMI_NAME="whoami-alpine"
+
+EXPOSE 8080
+USER app
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${WHOAMI_PORT_NUMBER}/health" || exit 1
+
+ENTRYPOINT ["/app/whoami"]
