@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        GO_VERSION: "1.24"
+        GO_VERSION: "1.26"
     image: whoami-alpine:latest
     container_name: whoami
     environment:
