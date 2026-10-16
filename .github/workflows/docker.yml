@@ -1,0 +1,37 @@
+name: docker-build-check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (с кэшем GitHub Actions)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: whoami-alpine:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run via docker compose
+        run: |
+          docker compose up -d
+          sleep 5
+          curl -fsS http://localhost:8080/health
+          curl -fsS http://localhost:8080 | head -n 5
+
+      - name: Check non-root user
+        run: |
+          docker exec whoami id
+          test "$(docker exec whoami id -u)" != "0"
+
+      - name: Show image size
+        run: docker images whoami-alpine
